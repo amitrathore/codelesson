@@ -5,4 +5,4 @@
 
 (deftest test-plateau-basics 
   (let [p (new-plateau 5 5)]
-    (println (place-rover [2 3 \n] p))))
+    (println (position-rover p [2 3 \N]))))
