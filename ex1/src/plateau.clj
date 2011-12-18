@@ -10,7 +10,8 @@
   (new-plateau max-x max-y (assoc-in matrix [x y] rover)))
 
 (defn remove-rover [{:keys [max-x max-y matrix]} [x y _]]
-  (->> (assoc matrix x (dissoc (matrix x) y))
+  (->> (dissoc (matrix x) y)
+       (assoc matrix x)
        (new-plateau max-x max-y)))
 
 (defn move-rover [[x y _ :as old-rover] new-rover plateau]
