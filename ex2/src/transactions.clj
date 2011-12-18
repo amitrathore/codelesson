@@ -23,8 +23,8 @@
   (lazy-seq
    (cons (random-account-id accounts) (random-account-ids accounts))))
 
-(defn bank-transaction [account-id txn-type amount]
-  {:id account-id :type txn-type :amount amount})
+(defn bank-transaction [transaction-id account-id txn-type amount]
+  {:transaction-id transaction-id :account-id account-id :transaction-type txn-type :amount amount})
 
 (defn random-transactions [accounts]
-  (map bank-transaction (random-account-ids accounts) (random-txn-types) (random-amounts)))
+  (map bank-transaction (iterate inc 1) (random-account-ids accounts) (random-txn-types) (random-amounts)))
