@@ -38,58 +38,88 @@
 
 ;;;;;; accounts related
 
-(defmulti overdraft-percentage-fee :type)
+(def overdraft-percentage-fee 
+     {:checking     0.100
+      :savings      0.075
+      :money-market 0.050})
 
-(defmethod overdraft-percentage-fee :checking [account] 0.10)
+(defn withdrawal-scenario [{:keys [overall-overdraft] :as bank} 
+               {:keys [balance] :as account} 
+               {:keys [transaction-type amount] :as transaction}
+               new-balance
+               overdraft-amount]
+  (cond
+   (pos? new-balance) :no-overdraft
+   (and (neg? new-balance) 
+        (< new-balance MAX-OVERDRAWN-BALANCE) 
+        (> overall-overdraft overdraft-amount)) :overdraft-available
+   (and (neg? new-balance) 
+        (> new-balance MAX-OVERDRAWN-BALANCE)
+        (< overall-overdraft overdraft-amount)) :overdraft-unavailable
+   (and (neg? new-balance)
+        (< new-balance MAX-OVERDRAWN-BALANCE)) :overdraft-unavailable))
 
-(defmethod overdraft-percentage-fee :savings [account] 0.075)
+(defn deposit-scenario [{:keys [overall-overdraft] :as bank} 
+                        {:keys [balance] :as account} 
+                        {:keys [transaction-type amount] :as transaction}
+                        new-balance
+                        repay-amount]
+  (cond
+   (or (pos? balance) (zero? balance)) :no-repayment
+   (neg? balance) :repayment))
 
-(defmethod overdraft-percentage-fee :money-market [account] 0.05)
+(defmulti run-withdrawal withdrawal-scenario)
 
-(defn needs-overdraw-processing? [transaction-type old-balance new-balance]
-  (let [needs? (and (= :withdrawal transaction-type) (neg? new-balance) (< new-balance old-balance))]
-    (println "Needs overdraw processing:" needs?)
-    needs?))
+(defmethod run-withdrawal :no-overdraft [{:keys [overall-overdraft] :as bank} 
+                                         {:keys [type balance] :as account} 
+                                         {:keys [transaction-type amount] :as transaction}
+                                         new-balance
+                                         overdraft-amount]
+  [new-balance overall-overdraft 0])
 
-(defn- compute-overdraft-withdraw [old-balance new-balance transaction-type 
-                                   amount  percentage-fee overall-overdraft]
-  (if-not (needs-overdraw-processing? transaction-type old-balance new-balance)
-    [overall-overdraft 0]
-    (let [amount-needed (if (neg? old-balance) amount (- amount old-balance))
-          new-overall-overdraft (- overall-overdraft amount-needed)]
-      (println "New-balance:" new-balance "Exceeds max:" (<= new-balance MAX-OVERDRAWN-BALANCE))
-      (if (or (neg? new-overall-overdraft) (<= new-balance MAX-OVERDRAWN-BALANCE))
-        [overall-overdraft BASE-OVERDRAFT-FEE]
-        [new-overall-overdraft (* amount-needed percentage-fee)]))))
+(defmethod run-withdrawal :overdraft-available [{:keys [overall-overdraft] :as bank} 
+                                                {:keys [balance] :as account} 
+                                                {:keys [transaction-type amount] :as transaction}
+                                                new-balance
+                                                overdraft-amount]
+  [new-balance (- overall-overdraft overdraft-amount) (* overdraft-amount (overdraft-percentage-fee type))])
 
-(defn- compute-overdraft-deposit [transaction-type old-balance amount overall-overdraft]
-  (if-not (and (= :deposit transaction-type) (neg? old-balance))
-    overall-overdraft
-    (+ overall-overdraft amount)))
+(defmethod run-withdrawal :overdraft-unavailable [{:keys [overall-overdraft] :as bank} 
+                                                  {:keys [balance] :as account} 
+                                                  transaction
+                                                  new-balance
+                                                  overdraft-amount]
+  [balance overall-overdraft BASE-OVERDRAFT-FEE])
 
-(defn run-txn [{:keys [overall-overdraft] :as bank} 
-               {:keys [id type transactions balance] :as account} 
-               {:keys [transaction-type amount] :as transaction} 
-               compute]
-  (println "----------\nBank overall:" overall-overdraft)
-  (println "Account ID:" id "Balance:" balance "Transaction:" transaction-type amount)
-  (let [new-account-balance (compute balance amount)
-        [new-overall-overdraft overdraft-fee] (compute-overdraft-withdraw balance new-account-balance 
-                                                                          transaction-type amount 
-                                                                          (overdraft-percentage-fee account) 
-                                                                          overall-overdraft)
-        new-overall-overdraft (compute-overdraft-deposit transaction-type balance amount new-overall-overdraft)]
-    [new-overall-overdraft (-> account
-                               (assoc :balance (- new-account-balance overdraft-fee))
-                               (assoc :transactions (conj transactions transaction)))]))
 
-(defmulti update-account (fn [bank accnt txn] (:transaction-type txn)))
 
-(defmethod update-account :withdrawal [bank account transaction]
-  (run-txn bank account transaction -))
+(defmulti run-deposit deposit-scenario)
 
-(defmethod update-account :deposit [bank account transaction]  
-  (run-txn bank account transaction +))
+(defmethod run-deposit :no-repayment [{:keys [overall-overdraft] :as bank} 
+                                      {:keys [balance] :as account} 
+                                      {:keys [transaction-type amount] :as transaction}
+                                      new-balance
+                                      repay-amount]
+  [new-balance overall-overdraft 0])
+
+(defmethod run-deposit :repayment [{:keys [overall-overdraft] :as bank} 
+                                   {:keys [balance] :as account} 
+                                   {:keys [transaction-type amount] :as transaction}
+                                   new-balance
+                                   repay-amount]
+  (let [repayment (if (neg? balance) (+ amount balance))])
+  [new-balance overall-overdraft 0])
+
+;; overdraft-amount (if (neg? balance) amount (- amount balance))
+
+
+;; (defmulti update-account (fn [bank accnt txn] (:transaction-type txn)))
+
+;; (defmethod update-account :withdrawal [bank account transaction]
+;;   (run-txn bank account transaction -))
+
+;; (defmethod update-account :deposit [bank account transaction]  
+;;   (run-txn bank account transaction +))
 
 (defn print-account [{:keys [id type transactions balance] :as account}]
   (println "Account ID:" id type)
