@@ -45,7 +45,7 @@
 (defn account-overdraft-limit-reached? [new-balance]
   (< new-balance MAX-OVERDRAWN-BALANCE))
 
-(defn withdrawal-scenario [{:keys [overall-overdraft] :as bank} account transaction new-balance overdraft-amount]
+(defn withdrawal-scenario [{overall-overdraft :overall-overdraft} account transaction new-balance overdraft-amount]
   (cond
    (pos? new-balance)                                                     :no-overdraft
    (and (neg? new-balance) 
