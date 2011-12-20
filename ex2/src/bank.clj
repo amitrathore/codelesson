@@ -1,5 +1,6 @@
 (ns bank
-  (:use utils clojure.contrib.str-utils))
+  (:use utils clojure.contrib.str-utils)
+  (:import [java.util Date]))
 
 (declare update-account print-account transaction-results)
 
@@ -9,10 +10,50 @@
 
 (def MAX-OVERDRAWN-BALANCE -1000)
 
+(def INTEREST-EVERY 6)
+
+(def BONUS-EVERY 14)
+
 (def overdraft-percentage-fee 
      {:checking     0.100
       :savings      0.075
       :money-market 0.050})
+
+(defn interest-percentage [{type :type}]
+  ({:checking 0.02 :savings 0.04 :money-market 0.06} type))
+
+(defn years-since [start-date]
+  (-> start-date (days-between (Date. (System/currentTimeMillis))) (/ 356) int))
+
+(defn age-profile [{start-date :start-date}]
+  (let [age (years-since start-date)]
+    (cond 
+     (<= age 2)                 :young-age
+     (and (> age 2) (< age 5))  :middle-age
+     (>= age 5)                 :old-age)))
+
+(defn balance-profile [{:keys [balance] :as account}]
+  (if (< balance 500) ::low-balance ::high-balance))
+
+(defn bonus-profile [account]
+  [(age-profile account) (balance-profile account)])
+
+(defmulti bonus-percentage bonus-profile)
+
+(defmethod bonus-percentage [:middle-age ::low-balance] [account]
+  (/ (interest-percentage account) 32))
+
+(defmethod bonus-percentage [:middle-age ::high-balance] [account]
+  (/ (interest-percentage account) 24))
+
+(defmethod bonus-percentage [:old-age ::low-balance] [account]
+  (/ (interest-percentage account) 16))
+
+(defmethod bonus-percentage [:old-age ::high-balance] [account]
+  (/ (interest-percentage account) 8))
+
+(defmethod bonus-percentage :default [_]
+  0)
 
 (defn new-bank 
   ([overdraft-balance accounts]
@@ -20,8 +61,11 @@
   ([]
      (new-bank 100000 {})))
 
-(defn add-new-account [bank account-id account-type transactions balance]
-  (->> {:id account-id :type account-type :transactions transactions :balance balance}
+(defn new-account [account-id account-type transactions balance start-date]
+  {:id account-id :type account-type :transactions transactions :balance balance :start-date start-date})
+
+(defn add-new-account [bank account-id account-type transactions balance start-date-string]
+  (->> (new-account account-id account-type transactions balance (date-from-str "MM-dd-yyyy" start-date-string))
        (assoc (:accounts bank) account-id)
        (new-bank (:overall-overdraft bank))))
 
@@ -85,6 +129,36 @@
 (defmethod run-deposit :repayment [bank account transaction new-balance]
   [new-balance (+ (:overall-overdraft bank) (repayment-amount (:balance account) (:amount transaction)))])
 
+(defn n-transactions? [{transactions :transactions} n]
+  (zero? (mod (count transactions) n)))
+
+(defn ready-for-interest [account]
+  (n-transactions? account INTEREST-EVERY))
+
+(defn ready-for-bonus [account]
+  (n-transactions? account BONUS-EVERY))
+
+(defn compute-addition [{:keys [balance] :as account} percentage-fn]
+  (+ balance (* balance (percentage-fn account))))
+
+(defn compute-interest [account]
+  (compute-addition account interest-percentage))
+
+(defn compute-bonus [account]
+  (compute-addition account bonus-percentage))
+
+(defn process-addition [addition-predicate compute-addition-fn account]
+  (if-not (and (pos? (:balance account)) (addition-predicate account))
+    account
+    (-> account
+        (assoc :balance (compute-addition-fn account)))))
+
+(defn process-interest [account]
+  (process-addition ready-for-interest compute-interest account))
+
+(defn process-bonus [account]
+  (process-addition ready-for-bonus compute-bonus account))
+
 (defn compute-new-balance [{:keys [balance]} {:keys [transaction-type amount]}]
   (condp = transaction-type
     :withdrawal (- balance amount)
@@ -93,7 +167,9 @@
 (defn update-account [{:keys [transactions] :as account} new-balance new-transaction]
   (-> account
       (assoc :balance new-balance)
-      (assoc :transactions (conj transactions new-transaction))))
+      (assoc :transactions (conj transactions new-transaction))
+      process-interest
+      process-bonus))
 
 (defn transaction-results [bank {:keys [balance transactions] :as account} {:keys [amount] :as transaction}]
   (let [new-balance (compute-new-balance account transaction)
@@ -104,9 +180,9 @@
       :deposit    (let [[new-balance new-overall] (run-deposit bank account transaction new-balance)]
                     [new-overall (update-account account new-balance transaction)]))))
 
-(defn print-account [{:keys [id type transactions balance] :as account}]
-  (println "Account ID:" id type)
+(defn print-account [{:keys [id type transactions balance start-date] :as account}]
+  (println "Account ID:" id type "Age:" (years-since start-date))
   (println "Balance:" balance)
-  (println "Transactions:")
+  (println "Transactions" (count transactions) "->")
   (println (str-join "\n" transactions))
   (println "----------------"))
