@@ -5,19 +5,26 @@
 
 (def RIGHT {\N \E \E \S \S \W \W \N})
 
-(defn new-rover [x y bearing]
-  [x y bearing])
+(let [id-gen (atom 0)]
+  (defn next-id []
+    (swap! id-gen inc)))
 
-(defn- moved-rover [x y bearing]
+(defn new-rover 
+  ([x y bearing]
+     (new-rover (next-id) x y bearing))
+  ([id x y bearing]
+     {:id id :x x :y y :bearing bearing}))
+
+(defn- moved-rover [{:keys [id x y bearing]}]
   (condp = bearing
-    \N (new-rover x (inc y) bearing)
-    \E (new-rover (inc x) y bearing)
-    \W (new-rover (dec x) y bearing)
-    \S (new-rover x (dec y) bearing)))
+    \N (new-rover id x (inc y) bearing)
+    \E (new-rover id (inc x) y bearing)
+    \W (new-rover id (dec x) y bearing)
+    \S (new-rover id x (dec y) bearing)))
 
-(defn calculate-position [[x y bearing :as rover] move]
+(defn calculate-position [{:keys [id x y bearing] :as rover} move]
   (condp = move
-    \L (new-rover x y (LEFT bearing)) 
-    \R (new-rover x y (RIGHT bearing))
-    \M (moved-rover x y bearing)))
+    \L (new-rover id x y (LEFT bearing)) 
+    \R (new-rover id x y (RIGHT bearing))
+    \M (moved-rover rover)))
 
