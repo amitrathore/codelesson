@@ -43,6 +43,11 @@
       plateau
       (with-collision rover collided plateau))))
 
+(defn is-within-bounds? [{:keys [x y]} {:keys [max-x max-y]}]
+  (and (>= x 1) (>= y 1) (>= max-x x) (>= max-y y)))
+
+(def out-of-bounds? (complement is-within-bounds?))
+
 (defn all-rovers [{matrix :matrix}]
   (->> matrix vals (mapcat vals) (sort-by :id)))
 
