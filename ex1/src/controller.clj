@@ -6,8 +6,8 @@
     (loop [moves moves old-position new-rover plateau (position-rover plateau new-rover)]
       (if (empty? moves)
         plateau
-        (let [new-position (calculate-position old-position (first moves))]
-          (recur (rest moves) new-position (move-rover old-position new-position plateau)))))))
+        (let [new-position (calculate-position old-position (first moves))]          
+          (recur (rest moves) new-position (move-rover old-position new-position (collision-checked new-position plateau))))))))
 
 (defn process-moves [plateau rovers]
   (reduce process-rover plateau rovers))

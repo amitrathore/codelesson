@@ -27,4 +27,3 @@
     \L (new-rover id x y (LEFT bearing)) 
     \R (new-rover id x y (RIGHT bearing))
     \M (moved-rover rover)))
-
