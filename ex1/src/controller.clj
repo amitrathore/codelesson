@@ -1,13 +1,14 @@
 (ns controller
-  (:use input rover plateau))
+  (:use input rover plateau utils))
 
 (defn process-rover [plateau [coordinates moves]]
-  (let [new-rover (apply new-rover coordinates)]
-    (loop [moves moves old-position new-rover plateau (position-rover plateau new-rover)]
+  (let [rover (apply new-rover coordinates)]    
+    (println "Processing rover:" rover)
+    (loop [moves moves old-position rover plateau (position-rover plateau rover)]
       (if (empty? moves)
         plateau
-        (let [new-position (calculate-position old-position (first moves))]          
-          (recur (rest moves) new-position (move-rover old-position new-position (collision-checked new-position plateau))))))))
+        (let [positioned (calculate-position old-position (first moves) plateau)]          
+          (recur (rest moves) positioned (move-rover old-position positioned (collision-checked positioned plateau))))))))
 
 (defn process-moves [plateau rovers]
   (reduce process-rover plateau rovers))

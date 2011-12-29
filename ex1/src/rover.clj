@@ -22,8 +22,10 @@
     \W (new-rover id (dec x) y bearing)
     \S (new-rover id x (dec y) bearing)))
 
-(defn calculate-position [{:keys [id x y bearing] :as rover} move]
-  (condp = move
-    \L (new-rover id x y (LEFT bearing)) 
-    \R (new-rover id x y (RIGHT bearing))
-    \M (moved-rover rover)))
+(defn calculate-position [{:keys [id x y bearing] :as rover} move {collisions :collisions :as plateau}]
+  (if (has-collided? rover plateau)
+    rover
+    (condp = move
+      \L (new-rover id x y (LEFT bearing)) 
+      \R (new-rover id x y (RIGHT bearing))
+      \M (moved-rover rover))))
