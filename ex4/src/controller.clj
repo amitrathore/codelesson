@@ -10,12 +10,13 @@
         (let [positioned (calculate-position old-position (first moves) plateau)]          
           (recur (rest moves) positioned (move-rover old-position positioned (collision-checked positioned plateau))))))))
 
-(defn process-moves [plateau rovers]
-  (reduce process-rover plateau rovers))
+(defn update-plateau [plateau-ref rover-info]
+  (dosync
+   (alter plateau-ref process-rover rover-info)))
 
 (defn process-input [filename]
-  (let [[[x y] rovers] (load-input filename)]
-    (-> (new-plateau x y)
-        (process-moves rovers)
-        (report-rovers))))
+  (let [[[x y] rovers] (load-input filename)
+        plateau-ref (ref (new-plateau x y))]
+    (doall (pmap (partial update-plateau plateau-ref) rovers))
+    (report-rovers @plateau-ref)))
 

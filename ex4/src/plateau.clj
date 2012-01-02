@@ -55,6 +55,7 @@
   (println "Final POSITIONS:")
   (doseq [{:keys [id x y bearing]} (all-rovers plateau)]
     (println "ID:" id "x, y, bearing:" x y bearing))
-  (println "Final COLLISIONS:")
-  (doseq [collided (vals collisions)]
-    (println "Collided:" collided)))
+  (when-not (empty? collisions) 
+    (println "Final COLLISIONS:")
+    (doseq [collided (vals collisions)]
+      (println "Collided:" collided))))
